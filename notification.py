@@ -1319,9 +1319,6 @@ class NotificationService:
     
     def _send_feishu_message(self, content: str) -> bool:
         """发送单条飞书消息"""
-        # 生成当前时间戳
-        timestamp = int(time.time())
-        
         # 构建基本消息体
         payload = {
             "msg_type": "text",
@@ -1329,15 +1326,6 @@ class NotificationService:
                 "text": content
             }
         }
-        
-        # 如果配置了签名密钥，添加签名信息
-        if self._feishu_secret:
-            sign = self._gen_feishu_sign(timestamp, self._feishu_secret)
-            payload["timestamp"] = str(timestamp)
-            payload["sign"] = sign
-            logger.info(f"飞书签名已添加: timestamp={timestamp}, sign={sign[:20]}...")
-        else:
-            logger.info("飞书签名密钥未配置，跳过签名")
         
         logger.info(f"飞书请求 URL: {self._feishu_url}")
         logger.info(f"飞书请求 payload 长度: {len(content)} 字符")
@@ -1371,25 +1359,6 @@ class NotificationService:
         except Exception as e:
             logger.error(f"发送飞书消息异常: {e}")
             return False
-    
-    def _gen_feishu_sign(self, timestamp: int, secret: str) -> str:
-        """
-        生成飞书签名
-        
-        Args:
-            timestamp: 时间戳（秒）
-            secret: 飞书机器人签名密钥
-            
-        Returns:
-            签名字符串
-        """
-        # 拼接timestamp和secret
-        string_to_sign = '{}\n{}'.format(timestamp, secret)
-        # 使用HmacSHA256算法计算签名，使用secret作为密钥，空字符串作为数据
-        hmac_code = hmac.new(secret.encode("utf-8"), string_to_sign.encode("utf-8"), digestmod=hashlib.sha256).digest()
-        # 对结果进行base64处理
-        sign = base64.b64encode(hmac_code).decode('utf-8')
-        return sign
     
     def send_to_email(self, content: str, subject: Optional[str] = None) -> bool:
         """
