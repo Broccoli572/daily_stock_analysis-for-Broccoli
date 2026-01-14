@@ -1,0 +1,154 @@
+name: 飞书机器人测试
+
+on:
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      test_message:
+        description: '测试消息内容'
+        required: true
+        default: '这是一条来自飞书机器人测试工作流的消息'
+
+jobs:
+  test-feishu-bot:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: 安装依赖
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: 创建测试脚本
+        run: |
+          cat > test_feishu_workflow.py << 'EOF'
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+飞书机器人测试脚本（用于GitHub Actions）
+"""
+
+import os
+import sys
+import logging
+import time
+import hmac
+import hashlib
+import base64
+import requests
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
+def gen_feishu_sign(timestamp: int, secret: str) -> str:
+    """
+    生成飞书签名
+    """
+    string_to_sign = '{}\n{}'.format(timestamp, secret)
+    hmac_code = hmac.new(
+        secret.encode("utf-8"), 
+        string_to_sign.encode("utf-8"), 
+        digestmod=hashlib.sha256
+    ).digest()
+    sign = base64.b64encode(hmac_code).decode('utf-8')
+    return sign
+
+def send_feishu_message(url: str, content: str, secret: str = None):
+    """
+    发送飞书消息
+    """
+    timestamp = int(time.time())
+    
+    payload = {
+        "msg_type": "text",
+        "content": {
+            "text": content
+        }
+    }
+    
+    if secret:
+        sign = gen_feishu_sign(timestamp, secret)
+        payload["timestamp"] = str(timestamp)
+        payload["sign"] = sign
+        logging.info(f"添加签名: timestamp={timestamp}, sign={sign[:20]}...")
+    
+    logging.info(f"发送请求到: {url}")
+    
+    try:
+        response = requests.post(
+            url,
+            json=payload,
+            timeout=30
+        )
+        
+        logging.info(f"响应状态码: {response.status_code}")
+        logging.info(f"响应内容: {response.text}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            code = result.get('code') if 'code' in result else result.get('StatusCode')
+            if code == 0:
+                logging.info("✓ 飞书消息发送成功！")
+                return True
+            else:
+                error_msg = result.get('msg') or result.get('StatusMessage', '未知错误')
+                error_code = result.get('code') or result.get('StatusCode', 'N/A')
+                logging.error(f"✗ 飞书返回错误 [code={error_code}]: {error_msg}")
+                return False
+        else:
+            logging.error(f"✗ 飞书请求失败: HTTP {response.status_code}")
+            logging.error(f"响应内容: {response.text}")
+            return False
+    except Exception as e:
+        logging.error(f"✗ 发送飞书消息异常: {e}")
+        return False
+
+def main():
+    """主函数"""
+    logging.info("开始测试飞书机器人...")
+    
+    # 从环境变量获取配置
+    feishu_url = os.getenv('FEISHU_WEBHOOK_URL')
+    feishu_secret = os.getenv('FEISHU_SECRET')
+    test_message = os.getenv('TEST_MESSAGE', '这是一条测试消息')
+    
+    if not feishu_url:
+        logging.error("错误: 未设置 FEISHU_WEBHOOK_URL 环境变量")
+        return 1
+    
+    logging.info(f"飞书 Webhook URL: {feishu_url}")
+    logging.info(f"飞书签名密钥: {'已配置' if feishu_secret else '未配置'}")
+    logging.info(f"测试消息: {test_message}")
+    
+    # 发送消息
+    success = send_feishu_message(feishu_url, test_message, feishu_secret)
+    
+    return 0 if success else 1
+
+if __name__ == "__main__":
+    sys.exit(main())
+EOF
+      
+      - name: 运行飞书测试脚本
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_SECRET: ${{ secrets.FEISHU_SECRET }}
+          TEST_MESSAGE: ${{ github.event.inputs.test_message }}
+        run: |
+          python test_feishu_workflow.py
+      
+      - name: 清理测试脚本
+        run: |
+          rm -f test_feishu_workflow.py
