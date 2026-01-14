@@ -316,41 +316,61 @@ def test_notification():
     config = get_config()
     service = NotificationService()
     
-    print_section("配置检查")
+    # 测试企业微信
+    print_section("企业微信通知")
     if service.is_available():
         print(f"  ✓ 企业微信 Webhook 已配置")
         webhook_preview = config.wechat_webhook_url[:50] + "..." if len(config.wechat_webhook_url) > 50 else config.wechat_webhook_url
         print(f"    URL: {webhook_preview}")
-    else:
-        print(f"  ✗ 企业微信 Webhook 未配置")
-        return False
-    
-    print_section("发送测试消息")
-    
-    test_message = f"""## 🧪 系统测试消息
-
+        
+        print(f"  发送测试消息...")
+        try:
+            test_message = f"""## 🧪 系统测试消息
 这是一条来自 **A股自选股智能分析系统** 的测试消息。
 
 - 测试时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 - 测试目的: 验证企业微信 Webhook 配置
 
 如果您收到此消息，说明通知功能配置正确 ✓"""
+            success = service.send_to_wechat(test_message)
+            if success:
+                print(f"  ✓ 企业微信消息发送成功，请检查企业微信")
+            else:
+                print(f"  ✗ 企业微信消息发送失败")
+        except Exception as e:
+            print(f"  ✗ 企业微信发送异常: {e}")
+    else:
+        print(f"  ✗ 企业微信 Webhook 未配置")
     
-    print(f"  正在发送...")
+    # 测试飞书
+    print_section("\n飞书通知")
+    if config.feishu_webhook_url:
+        print(f"  ✓ 飞书 Webhook 已配置")
+        webhook_preview = config.feishu_webhook_url[:50] + "..." if len(config.feishu_webhook_url) > 50 else config.feishu_webhook_url
+        print(f"    URL: {webhook_preview}")
+        print(f"    签名密钥: {'已配置 ✓' if config.feishu_secret else '未配置 ✗'}")
+        
+        print(f"  发送测试消息...")
+        try:
+            test_message = f"""飞书通知测试消息
+
+这是一条来自 **A股自选股智能分析系统** 的测试消息。
+
+- 测试时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+- 测试目的: 验证飞书 Webhook 配置
+
+如果您收到此消息，说明通知功能配置正确！"""
+            success = service.send_to_feishu(test_message)
+            if success:
+                print(f"  ✓ 飞书消息发送成功，请检查飞书")
+            else:
+                print(f"  ✗ 飞书消息发送失败")
+        except Exception as e:
+            print(f"  ✗ 飞书发送异常: {e}")
+    else:
+        print(f"  ✗ 飞书 Webhook 未配置")
     
-    try:
-        success = service.send_to_wechat(test_message)
-        
-        if success:
-            print(f"  ✓ 消息发送成功，请检查企业微信")
-        else:
-            print(f"  ✗ 消息发送失败")
-        
-        return success
-        
-    except Exception as e:
-        print(f"  ✗ 发送异常: {e}")
-        return False
+    return True
 
 
 def run_all_tests():
