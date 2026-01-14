@@ -1335,35 +1335,41 @@ class NotificationService:
             sign = self._gen_feishu_sign(timestamp, self._feishu_secret)
             payload["timestamp"] = str(timestamp)
             payload["sign"] = sign
-            logger.debug(f"飞书签名已添加: timestamp={timestamp}, sign={sign}")
-        
-        logger.debug(f"飞书请求 URL: {self._feishu_url}")
-        logger.debug(f"飞书请求 payload 长度: {len(content)} 字符")
-        
-        response = requests.post(
-            self._feishu_url,
-            json=payload,
-            timeout=30
-        )
-        
-        logger.debug(f"飞书响应状态码: {response.status_code}")
-        logger.debug(f"飞书响应内容: {response.text}")
-        
-        if response.status_code == 200:
-            result = response.json()
-            code = result.get('code') if 'code' in result else result.get('StatusCode')
-            if code == 0:
-                logger.info("飞书消息发送成功")
-                return True
-            else:
-                error_msg = result.get('msg') or result.get('StatusMessage', '未知错误')
-                error_code = result.get('code') or result.get('StatusCode', 'N/A')
-                logger.error(f"飞书返回错误 [code={error_code}]: {error_msg}")
-                logger.error(f"完整响应: {result}")
-                return False
+            logger.info(f"飞书签名已添加: timestamp={timestamp}, sign={sign[:20]}...")
         else:
-            logger.error(f"飞书请求失败: HTTP {response.status_code}")
-            logger.error(f"响应内容: {response.text}")
+            logger.info("飞书签名密钥未配置，跳过签名")
+        
+        logger.info(f"飞书请求 URL: {self._feishu_url}")
+        logger.info(f"飞书请求 payload 长度: {len(content)} 字符")
+        
+        try:
+            response = requests.post(
+                self._feishu_url,
+                json=payload,
+                timeout=30
+            )
+            
+            logger.info(f"飞书响应状态码: {response.status_code}")
+            logger.info(f"飞书响应内容: {response.text}")
+            
+            if response.status_code == 200:
+                result = response.json()
+                code = result.get('code') if 'code' in result else result.get('StatusCode')
+                if code == 0:
+                    logger.info("飞书消息发送成功")
+                    return True
+                else:
+                    error_msg = result.get('msg') or result.get('StatusMessage', '未知错误')
+                    error_code = result.get('code') or result.get('StatusCode', 'N/A')
+                    logger.error(f"飞书返回错误 [code={error_code}]: {error_msg}")
+                    logger.error(f"完整响应: {result}")
+                    return False
+            else:
+                logger.error(f"飞书请求失败: HTTP {response.status_code}")
+                logger.error(f"响应内容: {response.text}")
+                return False
+        except Exception as e:
+            logger.error(f"发送飞书消息异常: {e}")
             return False
     
     def _gen_feishu_sign(self, timestamp: int, secret: str) -> str:
