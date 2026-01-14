@@ -1379,8 +1379,8 @@ class NotificationService:
         """
         # 拼接timestamp和secret
         string_to_sign = '{}\n{}'.format(timestamp, secret)
-        # 使用HmacSHA256算法计算签名
-        hmac_code = hmac.new(string_to_sign.encode("utf-8"), digestmod=hashlib.sha256).digest()
+        # 使用HmacSHA256算法计算签名，使用secret作为密钥，空字符串作为数据
+        hmac_code = hmac.new(secret.encode("utf-8"), string_to_sign.encode("utf-8"), digestmod=hashlib.sha256).digest()
         # 对结果进行base64处理
         sign = base64.b64encode(hmac_code).decode('utf-8')
         return sign
